@@ -2,7 +2,7 @@
 
 ## Table of contents
 
-cacheFSM3.py -- super simple FSM and testbench for it, written in python using the MyHDL package
+cacheFSM.py -- super simple FSM and testbench for it, written in python using the MyHDL package
 
 cacheFSM.v -- MyHDL generated verilog code, based on cacheFSM3.py
 
