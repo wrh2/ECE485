@@ -8,14 +8,13 @@ from myhdl import *
 from random import randrange
 import sys
 
-def fifo(re, we, addr, hit, dout, din, clk, maxFilling=16):
+def fifo(re, we, addr, hit, valid, dout, din, clk, maxFilling=16):
     """
     2-way set associative cache with first in first out replacement policy
 
     :param input re:            read enable
     :param input we:            write enable
-    :param input index:         index, cache line to select in the cache
-    :param input tag:           tag for cache line
+    :param input addr:          address to read/write from
     :param input din:           data to write to the cache
     :param input clk:           clock
 
@@ -26,9 +25,8 @@ def fifo(re, we, addr, hit, dout, din, clk, maxFilling=16):
     """
 
     # set up the lines for the cache
-    #cache_line = {'valid': Signal(intbv(0)), 'tag': Signal(intbv(randrange(2**11))[11:]), 'data': Signal(intbv(0)[8:])}
-    cache_line = Signal(intbv(0, min=0, max=(2**20-1)))
-
+    cache_line = {'valid': Signal(intbv(0)), 'tag': Signal(intbv(randrange(2**11))[11:]), 'data': Signal(intbv(0)[8:])}
+    
     # create list of 16 cache lines
     cache_set = [cache_line for k in range(maxFilling)]
 
@@ -38,84 +36,88 @@ def fifo(re, we, addr, hit, dout, din, clk, maxFilling=16):
     # first in first out cache replacement policy
     @always(clk.posedge)
     def access():
+        """
+        Function describes the behavior of a cache access
+        """
 
         # split up address bits
 
         # 11 bits for the tag
-        tag = addr[15:5]
+        tag = addr[16:5]
 
         # 4 bits for the index
-        #index = addr[4:1]
+        index_bits = addr[4:1]
+        index = int(addr[4:1])
 
         # one bit for byte select
-        #bs = addr[0]
+        bs = int(addr[0])
 
         # write operation
         if we and not re:
 
-            # go through both sets in the cache
-            for n in range(len(cache)):
+            # check for hit
+            if ((cache[bs][index]['tag'] == tag) and (cache[bs][index]['valid'])):
+                hit.next = 1 # write hit
+                cache[bs][index]['data'].next = din
+            else:
+                hit.next = 0 # write miss
 
-                # pop off oldest cache line
-                cache[n].pop()
+                # first in, first out behavior below
 
-                # insert a new cache line in the beginning
-                cache[n].insert(0, cache_line)
+                # pop off oldest item
+                cache[bs].pop()
 
-                # set the valid bit on the new cache line
-                cache[n][0].next[19] = not cache[n][0][19]
+                # place at beginning
+                cache[bs].insert(0, cache_line)
 
-                # generate a tag for the cache line, random 11 bit value
-                cache[n][0].next[18:9] = intbv(randrange(2**9))
+                # set valid bit
+                cache[bs][0]['valid'].next = 1
 
-                # set the data in the cache line
-                cache[n][0].next[8:] = din
+                # set tag
+                cache[bs][0]['tag'].next = tag
+
+                # write data
+                cache[bs][0]['data'].next = din
+
+            # keep track of last valid address, so our simulation can do some interesting stuff
+            valid.next = addr
 
         # read operation
         elif ((re and not we)):
 
-            # go through both sets in the cache
-            for n in range(len(cache)):
+            # check for tag and valid bits
+            if cache[bs][index]['tag'] == tag and cache[bs][index]['valid']:
 
-                # go through the lines in the set
-                for m in range(len(cache[n])):
-
-                    # compare tag bits and check valid bit
-                    if cache[n][m][18:9] == tag and cache[n][m][19]:
-
-                        # we got something
-                        hit = 1
-
-                        # output the data
-                        dout.next = cache[n][m][8:]
-
-                    # tag bits didn't match or valid bit wasn't set
-                    else:
-
-                        # you get nothing! good day sir!
-                        hit = 0
-                        dout.next = 0
+                # read hit
+                hit.next = 1
+                dout.next = cache[bs][index]['data']
+            else:
+                # read miss
+                hit.next = 0
+                dout.next = 0
 
         # wait until read or write operation happens
         else:
-            hit = 0
+            hit.next = 0
             dout.next = 0
 
     # return local generator
     return access
 
-def testbench():
+def fifo_bench():
     """
-    Test bench for cacheFSM
+    Test bench for fifo cache
     """
 
     # initialize signals
     r, w, hit, clk = [Signal(bool(0)) for i in range(4)]
     addr = Signal(intbv(0, min=0, max=2**16))
+    valid = Signal(intbv(0, min=0, max=2**16))
     dout, din = [Signal(intbv(0, min=0, max=2**8)) for i in range(2)]
 
     # instance of fifo cache
-    fifo_inst = fifo(r, w, addr, hit, dout, din, clk)
+    fifo_inst = fifo(r, w, addr, hit, valid, dout, din, clk)
+    #fifo_inst = toVerilog(fifo, r, w, addr, hit, valid, dout, din, clk)
 
     # clock generation
     @always(delay(10))
@@ -125,8 +127,12 @@ def testbench():
     # randomly change inputs to FSM
     @always(clk.posedge)
     def stimulus():
-        # generate next address signal
-        addr.next = intbv(randrange(2**16), min=0, max=2**16)
+
+        if valid.next:
+            addr.next = valid.next
+        else:
+            # generate next address signal
+            addr.next = intbv(randrange(2**16), min=0, max=2**16)
 
         # generate next read signal
         r.next = bool(randrange(2))
@@ -134,13 +140,16 @@ def testbench():
         # generate next write signal
         w.next = bool(randrange(2))
 
-        # if next write signal is high
-        if w.next:
+        # if next write signal is high and read is low
+        if (w.next and (not r.next)):
 
             # generate next data signal
             din.next = intbv(randrange(256), min=0, max=2**8)
 
+        # otherwise
         else:
+
+            # din.next will be low
             din.next = intbv(0, min=0, max=2**8)
 
     # print the output, just for fun
@@ -166,8 +175,8 @@ def simulate(timesteps):
 
     :param timesteps: number of timesteps, integer
     """
-    tb = traceSignals(testbench)
-    #tb = testbench()
+    tb = traceSignals(fifo_bench)
+    #tb = fifo_bench()
     sim = Simulation(tb)
     sim.run(timesteps)
 
