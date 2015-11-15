@@ -9,14 +9,20 @@ from random import randrange
 # declare states
 t_State = enum('WAIT', 'READ', 'WRITE')
 
-def cacheFSM(addr, r, w, din, dout, clk, state):
+def cacheFSM(addr, r, w, din, valid, hit, dout, clk, state):
     """
     Function contains finite state machine definition
 
-    :param r:     input read
-    :param w:     input write
-    :param clk:   clock
-    :param state: current state
+    :param input addr:  address
+    :param input r:     read
+    :param input w:     write
+    :param input din:   data in
+    :param input clk:   clock
+
+    :param output valid:  valid bit
+    :param output hit:    hit/miss
+    :param output dout:   data out
+    :param output state:  current state
     """
 
     # not sure what intbv really is or why the [8:] is necessary
@@ -25,7 +31,10 @@ def cacheFSM(addr, r, w, din, dout, clk, state):
     # lets try this, assign random ints to memory just to fill it up
     # data bus width is 8 bits so nothing over 255
     # and lets make the memory have 256 slots because I'm just testing right now
-    mem = [Signal(randrange(255)) for i in range(256)]
+    tag = [Signal(intbv(randrange(2048))[11:]) for i in range(16)]
+    past_tags = tag
+    valid_bits = [Signal(intbv(randrange(2))[1:]) for i in range(16)]
+    data = [Signal(intbv(randrange(65535))[16:]) for i in range(16)]
 
     @always(clk.posedge)
     def logic():
@@ -35,7 +44,10 @@ def cacheFSM(addr, r, w, din, dout, clk, state):
 
             # next state is read
             state.next = t_State.READ
-            dout.next = mem[addr]
+
+            if((tag[addr]==past_tags[addr]) and valid_bits[addr]):
+                 hit.next = 1
+                 dout.next = data[addr]
 
         # write is high, read is low
         elif w == 1 and r == 0:
@@ -66,8 +78,8 @@ def testbench():
     state = Signal(t_State.WAIT) # default state
 
     # instance of cacheFSM
-    #cache_inst = cacheFSM(addr, r, w, din, dout, clk, state)
-    cache_inst = toVerilog(cacheFSM, addr, r, w, din, dout, clk, state)
+    cache_inst = cacheFSM(addr, r, w, din, dout, clk, state)
+    #cache_inst = toVerilog(cacheFSM, addr, r, w, din, dout, clk, state)
 
     # clock generation
     @always(delay(10))
@@ -79,8 +91,8 @@ def testbench():
     def stimulus():
         r.next = randrange(2)
         w.next = randrange(2)
-        addr.next = randrange(255)
-        din.next = randrange(255)
+        addr.next = randrange(16)
+        din.next = randrange(256)
 
     # print the output, just for fun
     @instance
@@ -105,8 +117,8 @@ def simulate(timesteps):
 
     :param timesteps: number of timesteps, integer
     """
-    #tb = traceSignals(testbench)
-    tb = testbench()
+    tb = traceSignals(testbench)
+    #tb = testbench()
     sim = Simulation(tb)
     sim.run(timesteps)
 
