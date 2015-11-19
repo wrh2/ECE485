@@ -1,0 +1,88 @@
+\documentclass[12pt]{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{tabulary}
+\usepackage{float}
+
+
+\begin{document}
+
+\title{Final Project}%replace X with the appropriate number
+\author{William Harrington, Ahmed Abdulkareem\\ %replace with your name
+ECE485} %if necessary, replace with your course title
+ 
+\maketitle
+\begin{description}
+	\item[Introduction] \hfill \\ \\
+		This report contains initial information regarding the final project \\ \\
+		\textbf{Initial Estimates}
+		\begin{enumerate}
+			\item Unit cost: 80
+			\begin{enumerate}
+				\item Memory consists of M1 x 1, M3 x 10
+				\item Memory capacity is 10.2 kB
+				\item Best case/worst case memory latency is 1 clock cycles / 15 clock cycles
+			\end{enumerate}
+			\item Communication cost: .95 dollars
+			\item Cumulative latency: 2976 clock cycles
+		\end{enumerate}
+		\textbf{Task list}
+		\begin{enumerate}
+			\item Initial design of architecture (Will, Ahmed)
+			\begin{enumerate}
+				\item Make design decisions on the types of memory to use and how to implement
+				\item Document design decisions
+			\end{enumerate}
+			\item Program initial simulation (Will)
+			\begin{enumerate}
+				\item Program initial simulation in python using MyHDL
+				\item Document tool chain (MyHDL, other python libraries needed to run simulation)
+				\item Provide ample documentation on use and implementation
+			\end{enumerate}
+			\item Debug and test initial simulation (Will, Ahmed)
+			\begin{enumerate}
+				\item Use initial traffic file in simulation
+				\item Generate waveforms with test bench
+				\item Verify that simulation performs as expected
+				\item Eliminate any bugs as needed
+				\item Document performance
+			\end{enumerate}
+			\item Design review (Will, Ahmed)
+			\begin{enumerate}
+				\item Go over the performance of the design in the simulation
+				\item Discuss possible changes regarding design
+				\item Document any decisions and/or pending changes
+			\end{enumerate}
+			\item Implement final changes (Will, Ahmed)
+			\item Complete documentation (Ahmed)
+		\end{enumerate}
+		\textbf{Project Timeline}
+		\checkmark = complete by
+		\tabcolsep=0.11cm
+		\begin{table}[h!]
+			%\tabcolsep=0.11cm
+ 			\begin{tabulary}{1.3\textwidth}{|L|L|L|L|L|L|L|L|}
+ 			\hline
+ 			 Milestone & Nov 18 & Nov 22  & Nov 25 & Nov 27 & Nov 29 & Nov 30 & Dec 1\\ %[0.25ex] 
+ 			\hline
+ 			Initial design of arch. & \checkmark &  &  & & & &\\ 
+			\hline
+			Initial simulation &  & \checkmark &  &  & & &\\ 
+			\hline
+			Debug and test initial sim. &  &  & \checkmark &  & & &\\ 
+			\hline
+			Design review &  &  &  & \checkmark & & &\\ 
+			\hline
+			Implement final changes &  &  &  & & \checkmark & &\\ 
+			\hline
+			Complete documentation &  &  &  &  & & \checkmark &\\
+			\hline
+			Final test and completion &  &  &  &  & & & \checkmark \\
+			\hline
+ 			\end{tabulary}
+			\end{table}
+			
+\end{description}
+
+\end{document}
