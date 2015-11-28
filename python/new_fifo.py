@@ -87,17 +87,19 @@ class hub:
 
                 # update capacity, get rid of that cache line
                 obj.capacity -= obj.mem.pop(obj.keys[-1])['ts']
+                print '%s: MEMORY CAPACITY %s' % (now(), obj.capacity)
 
                 # clean up keys list
                 obj.keys.pop(len(keys)-1)
 
                 # set cache line
-                obj.mem[tag] = {'ts': ts}
+                obj.mem[tag] = {'ts': 2*ts}
 
                 # update capacity
-                obj.capacity += ts
+                obj.capacity += 2*ts
+                print '%s: MEMORY CAPACITY %s' % (now(), obj.capacity)
 
-                if obj.capacity == obj.max_capacity:
+                if obj.capacity >= obj.max_capacity:
                     obj.full = True
 
                 # write to data center, long latency here
@@ -112,15 +114,17 @@ class hub:
 
                     # get rid of old
                     obj.capacity -= obj.mem[tag]['ts']
+                    print '%s: MEMORY CAPACITY %s' % (now(), obj.capacity)
 
                     # update memory
-                    obj.mem[tag] = {'ts': ts}
+                    obj.mem[tag] = {'ts': 2*ts}
 
                     # update capacity
-                    obj.capacity += ts
+                    obj.capacity += 2*ts
+                    print '%s: MEMORY CAPACITY %s' % (now(), obj.capacity)
 
                     # check if capacity reached
-                    if obj.capacity == obj.max_capacity:
+                    if obj.capacity >= obj.max_capacity:
 
                         # capacity reached, set flag
                         obj.full = True
@@ -132,12 +136,13 @@ class hub:
             print '%s: SEND Miss' % now()
 
             # update memory
-            obj.mem[tag] = {'ts': ts}
+            obj.mem[tag] = {'ts': 2*ts}
 
             # update capacity
-            obj.capacity += ts
+            obj.capacity += 2*ts
+            print '%s: MEMORY CAPACITY %s' % (now(), obj.capacity)
 
-            if obj.capacity == obj.max_capacity:
+            if obj.capacity >= obj.max_capacity:
                     obj.full = True
 
             # put in list of keys
@@ -189,18 +194,20 @@ class hub:
 
                 # update capacity, get rid of that cache line
                 obj.capacity -= obj.mem.pop(obj.keys[-1])['ts']
+                print '%s: MEMORY CAPACITY %s' % (now(), obj.capacity)
 
                 # clean up keys list
                 obj.keys.pop(len(keys)-1)
 
                 # set cache line
-                obj.mem[tag] = {'ts': ts}
+                obj.mem[tag] = {'ts': 2*ts}
 
                 # update capacity
-                obj.capacity += ts
+                obj.capacity += 2*ts
+                print '%s: MEMORY CAPACITY %s' % (now(), obj.capacity)
 
                 # check if capacity reached
-                if obj.capacity == obj.max_capacity:
+                if obj.capacity >= obj.max_capacity:
 
                     # capacity reached, set flag
                     obj.full = True
@@ -216,10 +223,11 @@ class hub:
                 obj.mem[tag] = {'ts': ts}
 
                 # update capacity
-                obj.capacity += ts
+                obj.capacity += 2*ts
+                print '%s: MEMORY CAPACITY %s' % (now(), obj.capacity)
 
                 # check to see if capacity reached
-                if obj.capacity == obj.max_capacity:
+                if obj.capacity >= obj.max_capacity:
 
                     # capacity reached, set flag
                     obj.full = True
