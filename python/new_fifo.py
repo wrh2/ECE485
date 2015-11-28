@@ -1,201 +1,215 @@
 """
-  High level modeling of First In First Out cache
+  High level modeling and static simulation 
   for ECE485 final project
   Programmed by William Harrington
 """
-from myhdl import *
-from random import randrange
+from myhdl import * # use MyHDL package
+import numpy as np  # use numpy package, give it alias np
+import argparse     # use argparse package
 
-def trigger(event):
-    """
-    Function for triggering events
+# initialize argument parser
+parser = argparse.ArgumentParser()
 
-    :param input event: event to trigger
-    """
-    event.next = not event
+# argument for getting mood of Einstein
+parser.add_argument('-f', action = 'store', dest = 'fname', required = True, help = 'filename')
 
-class fifo:
-    """
-    Class definition for First In, First Out high level cache model
-    """
+# parse the arguments
+arguments = parser.parse_args()
 
-    def __init__(self):
+# use numpy to load data from csv file
+columns = np.loadtxt(arguments.fname, dtype=int, delimiter=',', unpack=True)
+
+# put data from csv file into arrays
+t = columns[0]       # time
+device = columns[1]  # device ID
+op = columns[2]      # operation type
+ts = columns[3]      # transaction size
+tag = columns[4]     # tag
+
+class hub:
+    """ Wireless hub object """
+    
+    # memory
+    mem = {}
+
+    # output
+    item = None
+
+    # memory latency
+    latency = 18*16
+    
+    # satellite latency    
+    sat_latency = 150*16*83333
+
+    # variable for capacity
+    capacity = 0
+
+    # max
+    max_capacity = 10496
+
+    # memory full flag
+    full = False
+
+    # list of keys, for eviction policy
+    keys = []
+
+    def send(obj, tag, ts):
+        """ Send function
+            :param input obj: class input, should be queue class
+            :param input tag: tag for memory
+            :param input ts:  transaction size
         """
-        Class initialization
+        # memory latency
+        yield delay(obj.latency*ts)
+        
+        # check is tag in cache
+        if tag in obj.mem:
 
-        :class member mem: memory
-        :class member tags: tags associated with memory
-        :class member sync: synchronization signal
-        :class member evict: last evicted item
-        :class member capacity: capacity of memory
-        :class member hit: tag present signal
-        """
-        self.mem = []
-        self.tags = []
-        self.sync = Signal(0)
-        self.evict = None
-        self.capacity = 16
-        self.hit = Signal(0)
-        self.data_out = 0
-        self.valid = 0
+            # got a hit
+            print '%s: SEND hit' % now()
 
-    def write(self, data, tag):
-        """
-        Writie method
+            # are we full tho, yeah we full
+            if obj.full:
 
-        :param input self: class object
-        :param input data: data to write
-        :param input tag: tag to write to
-        """
-        # non time-consuming method
+                # output tag as its getting evicted
+                obj.item = keys[-1]
+            
+                # process eviction
+                print "%s: EVICT tag %s size %s, " % (now(), obj.keys[-1], obj.mem[tag])
+            
+                # update capacity, get rid of that cache line
+                obj.capacity -= obj.mem.pop(obj.keys[-1])['ts']
+            
+                # clean up keys list
+                obj.keys.pop(len(keys)-1)
+            
+                # set cache line
+                obj.mem[tag] = {'ts': ts}
+            
+                # write to data center, long latency here
+                yield delay(obj.sat_latency*ts)
 
-        # check if tag is present
-        try:
-            val = self.tags.index(tag)
+            # not full
+            else:
+                obj.capacity -= obj.mem[tag]['ts'] # get rid of old
 
-        # make an exception if value isn't there
-        except ValueError:
+                obj.mem[tag] = {'ts': ts} # update memory
+
+                obj.capacity += ts # update capacity
+
+        # tag not in cache
+        else:
 
             # miss
-            self.hit.next = 0
+            print '%s: SEND Miss' % now()
 
-            # check to see if memory is at capacity
-            if len(self.mem) >= self.capacity:
-                # need to perform eviction
-                self.evict = self.mem.pop()
+            # update memory
+            obj.mem[tag] = {'ts': ts}
 
-            # write to beginning of list
-            self.mem.insert(0, data)
-            self.tags.insert(0, tag)
+            # update capacity
+            obj.capacity += ts
 
-            # trigger event
-            trigger(self.sync)
+            # put in list of keys
+            obj.keys.insert(0, tag)
+            
+        #obj.mem[tag] = {'ts': ts}
+        #obj.capacity += ts
+        print obj.capacity
+        #obj.keys.insert(0, tag)
 
-        # no exception
-        else:
+#        # check for tag in memory, make sure not full
+#        if tag in obj.mem and not obj.full:
+#
+#            # put tag in keys list
+#            obj.keys.insert(0, tag)
+#
+#            # put in memory
+#            obj.mem[tag] = {'ts': ts}
+#            
+#            # update capacity
+#            obj.capacity += ts
+#            print obj.capacity
+#
+#            # check to see if full
+#            if obj.capacity == obj.max_capacity:
+#                # capacity reached, set flag
+#                obj.full = True
+#
+#        # check for tag in memory, we're full, eviction imminent
+#        elif tag in obj.mem and obj.full:
+#
+#            # output tag as its getting evicted
+#            obj.item = keys[-1]
+#            
+#            # process eviction
+#            print "%s: EVICT tag %s size %s, " % (now(), obj.keys[-1], obj.mem[tag])
+#            
+#            # update capacity, get rid of that cache line
+#            obj.capacity -= obj.mem.pop(obj.keys[-1])['ts']
+#            
+#            # clean up keys list
+#            obj.keys.pop(len(keys)-1)
+#            
+#            # set cache line
+#            obj.mem[tag] = {'ts': ts}
+#            
+#            # write to data center, long latency here
+#            yield delay(obj.sat_latency*ts)
+#            
+#        # not in memory yet
+#        else:
+#
+#            # write to memory
+#            obj.mem[tag] = {'ts': ts}
 
-            # hit, tag was present
-            self.hit.next = 1
-
-            # write data to index in memory
-            self.mem[val] = data
-
-            # trigger event
-            trigger(self.sync)
-
-    def read(self, tag):
+    def request(obj, tag, ts):
+        """ Request function
+            :param input obj: class input, should be queue class
+            :param input tag: tag for memory
+            :param input ts:  transaction size
         """
-        Read method
+        
+        # memory latency
+        yield delay(obj.latency*ts)        
+        
+        # check if in memory
+        if tag in obj.mem:
 
-        :param input self: instance
-        :param input tag: tag to read
-        """
-        # time-consuming method
-
-        # check for empty memory
-        if not self.mem:
-
-            # read empty memory, definitely a miss
-            self.hit.next = 0
-
-            # resume when event is triggered
-            yield self.sync
-
+            print 'REQUEST Hit'
+            
+            # output from memory
+            obj.item = obj.mem[tag]
+            
         else:
+            
+            print 'REQUEST Miss'
+            
+            yield delay(obj.sat_latency*ts)
+            
+            obj.mem[tag] = {'ts': ts}
+            
+            obj.item = obj.mem[tag]
 
-            # check for tag in memory
-            try:
-                val = self.tags.index(tag)
+# instance of wireless hub
+h = hub()
 
-            # make an exception if the value isn't there
-            except ValueError:
-
-                # big ol miss
-                self.hit.next = 0
-
-                # no data or tag to return
-                self.data_out = 0
-                self.valid = 0
-
-                yield self.sync
-
-            else:
-
-                # got something
-                self.hit.next = 1
-
-                # return data
-                self.data_out = self.mem[val]
-                
-                # return tag
-                self.valid = self.tags[val]
-
-                yield self.sync
-
-# instance of fifo memory
-f = fifo()
-
-def write_op(f):
-    """
-    Write operation
-
-    :param input f: fifo instance
-    """
-    yield delay(150) # 15 clk cycle delay
-
-    # generate 5 random transaction sizes
-    for i in range(5):
-
-        # random transaction size, 0-1024 in steps of 128
-        # this makes the number that is returned always divisible
-        # by 128
-        rand_ts = randrange(0, 1024, 128)
-
-        # randrom tag from 0 to 15
-        rand_tag = randrange(0, 15, 1)
-
-        # write to fifo memory
-        f.write(rand_ts, rand_tag)
-
-        # output
-        if f.hit:
-            print "%s: wrote %s bytes to tag %s, HIT" % (now(), rand_ts, rand_tag)
-        # gotta write to data center
+def Producer(h):
+    
+    # iterate  
+    for i in range(len(t)):
+        yield delay(t[i])
+        if not op[i]:
+            print "%s: SEND tag %s size %s" % (now(), tag[i], ts[i])
+            yield h.send(tag[i], int(ts[i]/2))
+            print "%s: SENT tag %s size %s" % (now(), tag[i], ts[i])
         else:
-            print "%s: wrote %s bytes to tag %s, MISS contacting data center" % (now(), rand_ts, rand_tag)
-            yield delay(1500)
-
-def read_op(f):
-    """
-    Read operation
-
-    :param input
-    """
-    yield delay(150) # 15 clk cycle delay
-
-    # try to read memory
-    while True:
-        # announce accessing of memory
-        print "%s: trying to read memory" % now()
-
-        # get read result
-        yield f.read(randrange(0, 15,1))
-
-        # if we got a hit
-        if f.hit:
-            # output message is this
-            print "%s: read %s bytes, tag was %s, HIT" % (now(), f.data_out, f.valid)
-
-        # miss
-        else:
-            # output message is this
-            print "%s: reads %s bytes, MISS, contacting data center" % (now(), f.data_out)
-            yield delay(1500) # additional latency for data center access
+            print "%s: REQUEST tag %s" % (now(), tag[i])
+            yield h.request(tag[i], int(ts[i]/2))
+            print "%s REQUEST fulfilled, got %s" % (now(), h.item)
 
 def main():
-    W = write_op(f)
-    R = read_op(f)
-    return W, R
+    P = Producer(h)
+    return P
 
 sim = Simulation(main())
 sim.run()
