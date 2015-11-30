@@ -1,7 +1,7 @@
 """
-  High level modeling and static simulation
-  for ECE485 final project
-  Programmed by William Harrington
+High level implementation of memories available for ECE485 project
+Programmed by William Harrington
+ECE485
 """
 from myhdl import *  # use MyHDL package
 import numpy as np   # use numpy package, give it alias np
@@ -32,233 +32,217 @@ ts = columns[3]      # transaction size
 tag = columns[4]     # tag
 
 
-class hub:
-    """ Model of Wireless hub as an object """
+# size in bytes
+M1 = 256
+M2 = 512
+M3 = 1024
 
-    # memory
-    mem = {}
+# latency in clock cylces
+M1_latency = 1
+M2_latency = 8
+M3_latency = 15
 
-    # output
-    item = None
+# bandwidth delay in clock cycles
+bandwidth_delay_local = 18
 
-    # memory latency
-    latency = 18*16
 
-    # satellite latency
-    sat_latency = 150*16*83333
+class cache:
+    """ High level model of M1 memory """
 
-    # variable for capacity
-    capacity = 0
-
-    # max
-    max_capacity = 10496
-
-    # memory full flag
-    full = False
-
-    # list of keys, for eviction policy
-    keys = []
-
-    def send(obj, tag, ts):
-        """ Send function
-            :param input obj: class input, should be hub class
-            :param input tag: tag for memory
-            :param input ts:  transaction size
+    def __init__(self, max_capacity=M1, latency=M1_latency):
         """
-        # memory latency
-        yield delay(obj.latency*ts)
+            M1 initialization
 
-        # check is tag in cache
-        if tag in obj.mem:
+            :param input max_capacity: maximum capacity of the cache
+            :param input latency: latency of memory in clock cycles
+        """
 
-            # got a hit
-            print '%s: SEND hit' % now()
+        # memory
+        self.m = {}
 
-            # are we full tho, yeah we full
-            if obj.full:
+        # tags array used for tracking FIFO
+        self.tags = []
 
-                # output tag as its getting evicted
-                obj.item = keys[-1]
+        # hit flag, indicates read/write hit or miss
+        self.hit = False
 
-                # process eviction
-                print "%s: EVICT tag %s size %s, " % (now(),
-                                                      obj.keys[-1],
-                                                      obj.mem[tag])
+        # keeps track of how full cache is
+        self.used = 0
 
-                # update capacity, get rid of that cache line
-                obj.capacity -= obj.mem.pop(obj.keys[-1])['ts']
-                print '%s: MEMORY CAPACITY %s' % (now(), obj.capacity)
+        # maximum capacity of cache
+        self.max_capacity = max_capacity
 
-                # clean up keys list
-                obj.keys.pop(len(keys)-1)
+        # full flag, indicates cache is at max capacity
+        self.full = False
 
-                # set cache line
-                obj.mem[tag] = {'ts': 2*ts}
+        # latency of memory
+        self.latency = latency
 
-                # update capacity
-                obj.capacity += 2*ts
-                print '%s: MEMORY CAPACITY %s' % (now(), obj.capacity)
+        # 16 bit databus for input output
+        self.databus = []
 
-                if obj.capacity >= obj.max_capacity:
-                    obj.full = True
-
-                # write to data center, long latency here
-                yield delay(obj.sat_latency*ts)
-
-            # not full
-            else:
-
-                # lets see if its the same transaction now
-                # we only do something if it isn't
-                if obj.mem[tag]['ts'] != ts:
-
-                    # get rid of old
-                    obj.capacity -= obj.mem[tag]['ts']
-                    print '%s: MEMORY CAPACITY %s' % (now(), obj.capacity)
-
-                    # update memory
-                    obj.mem[tag] = {'ts': 2*ts}
-
-                    # update capacity
-                    obj.capacity += 2*ts
-                    print '%s: MEMORY CAPACITY %s' % (now(), obj.capacity)
-
-                    # check if capacity reached
-                    if obj.capacity >= obj.max_capacity:
-
-                        # capacity reached, set flag
-                        obj.full = True
-
-        # tag not in cache
+    def checkCapacity(self):
+        """
+            Check capacity of cache
+        """
+        if self.used >= self.max_capacity:
+            self.full = True
         else:
+            self.full = False
 
-            # miss
-            print '%s: SEND Miss' % now()
+    def access(self, w, tag, ts):
+        """
+            Access the memory
 
-            # update memory
-            obj.mem[tag] = {'ts': 2*ts}
-
-            # update capacity
-            obj.capacity += 2*ts
-            print '%s: MEMORY CAPACITY %s' % (now(), obj.capacity)
-
-            if obj.capacity >= obj.max_capacity:
-                    obj.full = True
-
-            # put in list of keys
-            obj.keys.insert(0, tag)
-
-    def request(obj, tag, ts):
-        """ Request method
-
-            :param input obj: class input, should be hub class
-            :param input tag: tag for memory
+            :param input tag: tag in cache
             :param input ts:  transaction size
         """
 
-        # memory latency
-        yield delay(obj.latency*ts)
+        yield delay(self.latency)
+        # yield delay(self.latency*ts)
 
-        # check if in memory
-        # if in memory
-        if tag in obj.mem:
+        # write
+        if w:
 
-            # debug message, gonna get rid of this later
-            # got a hit
-            print '%s: REQUEST Hit' % now()
+            # check to see if tag in memory
+            if tag in self.m:
 
-            # output from memory
-            obj.item = obj.mem[tag]
+                # set hit flag
+                self.hit = True
 
-        # not in memory
-        else:
+                # check capacity of cache
+                self.checkCapacity()
 
-            # big ol miss, debug message
-            print '%s: REQUEST Miss' % now()
+                # check for full flag, if set, evict
+                # also make sure ts + used < max_capacity to
+                # prevent the cache from being over filled
+                # and evict if ts + used > max_capacity
+                if self.full or (ts+self.used > self.max_capacity):
 
-            # gotta get it from the data center
-            yield delay(obj.sat_latency*ts)
+                    # eviction is needed
+                    self.evict(self.tags[-1])
 
-            # check to see if memory is full
-            # evict a line if memory is full
-            if obj.full:
+                # convert to binary
+                # ex: transaction size = 128
+                # intbv(256-1) will yield 8 bits of 1 aka one byte
+                # multiplying this by 128 will give us 128 bytes
+                self.m[tag] = ts*bin(intbv(255))
 
-                # output tag as its getting evicted
-                obj.item = keys[-1]
+                # update used
+                self.used += ts
 
-                # process eviction
-                print "%s: EVICT tag %s size %s, " % (now(),
-                                                      obj.keys[-1],
-                                                      obj.mem[tag]
-                                                      )
-
-                # update capacity, get rid of that cache line
-                obj.capacity -= obj.mem.pop(obj.keys[-1])['ts']
-                print '%s: MEMORY CAPACITY %s' % (now(), obj.capacity)
-
-                # clean up keys list
-                obj.keys.pop(len(keys)-1)
-
-                # set cache line
-                obj.mem[tag] = {'ts': 2*ts}
-
-                # update capacity
-                obj.capacity += 2*ts
-                print '%s: MEMORY CAPACITY %s' % (now(), obj.capacity)
-
-                # check if capacity reached
-                if obj.capacity >= obj.max_capacity:
-
-                    # capacity reached, set flag
-                    obj.full = True
-
-                # evicted line has to go to data center
-                # long latency here
-                yield delay(obj.sat_latency*ts)
-
-            # memory is not full
+            # tag no in memory
             else:
 
-                # set cache line
-                obj.mem[tag] = {'ts': ts}
+                # unset hit flag
+                self.hit = False
 
-                # update capacity
-                obj.capacity += 2*ts
-                print '%s: MEMORY CAPACITY %s' % (now(), obj.capacity)
+                # check capacity of cache
+                self.checkCapacity()
 
-                # check to see if capacity reached
-                if obj.capacity >= obj.max_capacity:
+                # check for full flag, if set, evict
+                # also make sure ts + used < max_capacity to
+                # prevent the cache from being over filled
+                # and evict if ts + used > max_capacity
+                if self.full or (ts+self.used > self.max_capacity):
 
-                    # capacity reached, set flag
-                    obj.full = True
+                    # eviction is needed
+                    self.evict(self.tags[-1])
 
-                # output item
-                obj.item = obj.mem[tag]
+                # insert tag into beginning of tags array
+                self.tags.insert(0, tag)
 
-# instance of wireless hub
-h = hub()
+                # convert to binary
+                # ex: transaction size = 128
+                # intbv(256-1) will yield 8 bits of 1 aka one byte
+                # multiplying this by 128 will give us 128 bytes
+                self.m[tag] = ts*bin(intbv(255))
+
+                # update used
+                self.used += ts
+
+        # read
+        else:
+
+            # check to see if tag is in memory
+            if tag in self.m:
+
+                # set hit flag
+                self.hit = True
+
+                # tracker variable for loop below
+                lastBits = 0
+
+                # TODO: this should happen multiple times
+                # got a hit, output 2 bytes on databus
+                for bits in range(len(self.m[tag])):
+
+                    # every two bytes
+                    if bits % 16 == 0:
+
+                        # output to databus
+                        self.databus = self.m[tag][lastBits:bits]
+
+                        # update lastBits
+                        lastBits = bits
+
+                    # bandwidth delay for local link
+                    yield delay(self.latency*bandwidth_delay_local)
+
+            # tag is not in memory
+            else:
+
+                # unset hit flag
+                self.hit = False
+
+                # output 0's on databus
+                self.databus = bin(intbv(0))
+
+                # TODO: contact data center
+                # yield delay()
+
+    def evict(self, tag):
+        """
+            Evict cache line
+
+            :param input tag: tag in cache to evict
+        """
+
+        # show eviction information
+        print '%s: EVICT %s' % (now(), tag)
+
+        # count the bytes getting evicted
+        countByte = 0
+        for bits in range(len(self.m[tag])):
+            if bits % 8 == 0:
+                countByte += 1
+        size = countByte
+
+        # update used
+        self.used -= size
+
+        # first in first out eviction, evict from tags array & memory
+        self.tags.pop(-1)
+        self.m.pop(tag)
 
 
-def users(h):
+L1 = cache(max_capacity=M1)
+L2 = cache(max_capacity=10*M3, latency=M3_latency)
 
-    # iterate through each item in the csv data
+
+def operations(mem1, mem2):
+
     for i in range(len(t)):
 
-        # delay by time at which transactions happens
-        # for instance if t[i] = 50, adds 50 to the
-        # end of the last transaction
-        yield delay(t[i])
-
-        # check the command, op = 0 is a SEND, op = 1 is a REQUEST
-
-        # op = 0, we have a SEND
         if not op[i]:
-
             # some output to tell us what is going on
             print "%s: SEND tag %s size %s" % (now(), tag[i], ts[i])
 
-            # let the send transaction happen
-            yield h.send(tag[i], int(ts[i]/2))
+            if ts[i] > 128:
+                yield mem2.access(1, tag[i], ts[i])
+            else:
+                # let the send transaction happen
+                yield mem1.access(1, tag[i], ts[i])
 
             # transaction is finished
             print "%s: SENT tag %s size %s" % (now(), tag[i], ts[i])
@@ -269,20 +253,27 @@ def users(h):
             # some output to tell us what is going on
             print "%s: REQUEST tag %s" % (now(), tag[i])
 
-            # let the request transaction happen
-            yield h.request(tag[i], int(ts[i]/2))
+            yield mem1.access(0, tag[i], ts[i])
+            yield mem2.access(0, tag[i], ts[i])
 
-            # transaction is finished
-            print "%s REQUEST fulfilled, got %s" % (now(), h.item)
+            if mem1.hit:
+                # transaction is finished
+                print "%s REQUEST fulfilled by mem1, got %s" % (now(),
+                                                                mem1.databus)
+
+            elif mem2.hit:
+
+                print "%s REQUEST fulfilled by mem2, got %s" % (now(),
+                                                                mem2.databus)
 
 
 def main():
     """ Main function """
     # instance of users, give them an instance of the wireless hub
-    u = users(h)
+    ops = operations(L1, L2)
 
     # return local generator for simulation
-    return u
+    return ops
 
 # using MyHDL simulation environment, give it main
 sim = Simulation(main())
