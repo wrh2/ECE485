@@ -1,0 +1,3 @@
+Communication Cost: $
+Unit Cost         : $
+Cumulative Latency: clock cycles
