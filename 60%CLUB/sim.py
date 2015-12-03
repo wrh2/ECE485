@@ -479,7 +479,7 @@ class cache:
 L1 = cache(max_capacity=M20, latency=M2_latency)
 
 # Level 2 memory module, 10 M3 memories each with 1 cache line of 1kB
-L2 = cache(max_capacity=10*M32, latency=M3_latency, policy='LRU')
+L2 = cache(max_capacity=10*M32, latency=M3_latency)
 
 
 def hub(mem1, mem2):

@@ -11,3 +11,7 @@ python sim.py -f full/path/to/CSV_Traffic_File
 ## Help
 For more help, run the program with the following argument
 python sim.py --help
+
+## Note
+Transaction size is obtained from the tag and index bits
+Results from the video may not match up with the documentation because bug fixes

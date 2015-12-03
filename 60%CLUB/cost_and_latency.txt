@@ -1,19 +1,19 @@
 Initial Traffic File:
-- Communication Cost: $13.47
+- Communication Cost: $8.92
 - Unit Cost         : $40
-- Cumulative Latency: 80852000000 clock cycles
+- Cumulative Latency: 53634000000 clock cycles
 
 Second Traffic File:
-- Communication Cost: $7.19
+- Communication Cost: $7.21
 - Unit Cost         : $40
-- Cumulative Latency: 43155000000 clock cycles
+- Cumulative Latency: 43255000000 clock cycles
 
 Third Traffic File:
-- Communication Cost: $17.88
+- Communication Cost: $17.91
 - Unit Cost         : $40
-- Cumulative Latency: 107385000000 clock cycles
+- Cumulative Latency: 107579000000 clock cycles
 
 Average:
-- Communication Cost: $12.84
+- Communication Cost: $11.34
 - Unit Cost         : $40
-- Cumulative Latency: 77130666666 clock cycles
+- Cumulative Latency: 68156000000 clock cycles
