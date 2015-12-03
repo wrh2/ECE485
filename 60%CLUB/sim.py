@@ -57,7 +57,7 @@ arguments = parser.parse_args()
 
 # use numpy to load data from csv file
 if not isfile(join(arguments.fname)):
-    print 'ERROR: %s does NOT exist'
+    print 'ERROR: %s does NOT exist' % arguments.fname
     exit(1)
 columns = np.loadtxt(arguments.fname, dtype=int, delimiter=',', unpack=True)
 
