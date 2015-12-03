@@ -585,11 +585,13 @@ def hub(mem1, mem2):
 
                 # L1 indicates hit
                 print "%s REQUEST fulfilled by L1" % now()
+                mem1.hit = False
 
             elif mem2.hit:
 
                 # L2 indicates hit
                 print "%s REQUEST fulfilled by L2" % now()
+                mem2.hit = False
 
     # simulation done, show stats
     print '--------------------------------------'            
