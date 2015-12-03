@@ -104,9 +104,6 @@ bandwidth_delay_local = 18
 # with the satellite, giving us 83,4333 clock cylces
 bandwidth_delay_satellite = 83433
 
-# TODO: remove this and just add 50 to each bandwidth delay for satellite
-bandwidth_delay_center = 83483
-
 
 """ Data center """
 
@@ -200,7 +197,7 @@ class cache:
         """
 
         # keep track of when transaction started
-        started = now()
+        start = now()
 
         # delay due to memory latency
         yield delay(self.latency)
@@ -214,7 +211,8 @@ class cache:
             # check to see if tag in memory
             if tag in self.m:
 
-                # set hit flag
+                # tag is in memory
+                # set hit flag, increment hits 
                 self.hit = True
                 self.hits += 1
 
@@ -222,44 +220,55 @@ class cache:
                 self.checkCapacity()
 
                 # check for full flag, if set, evict
-                # also make sure ts + used < max_capacity to
+                # also make sure new cache line + used < max_capacity to
                 # prevent the cache from being over filled
-                # and evict if ts + used > max_capacity
-                if self.full or (self.used+1 > self.max_capacity):#(ts+self.used > self.max_capacity):
+                # and evict if new cache line + used > max_capacity
+                if self.full or (self.used+1 > self.max_capacity):
 
                     # eviction is needed, check policy
                     if self.LRU:
 
                         # least recently used
                         old_key = min(self.m.keys(), key=lambda k:self.m[k])
+
+                        # let eviction function take over
+                        # resume execution here when done
                         yield self.evict(old_key)
 
                     elif self.FIFO:
 
                         # first in first out
+                        # let eviction function take over
+                        # resume execution here when done
                         yield self.evict(self.tags[-1])
 
-                # convert to binary
-                # ex: transaction size = 128
-                # intbv(256-1) will yield 8 bits of 1 aka one byte
-                # multiplying this by 128 will give us 128 bytes
+                # initialize cache line
                 self.m[tag] = []
-                #for x in range(ts/2):
+                
+                # go through the data and grab two bytes
+                # and store in memory
+                # the tag and index bits take up two bytes
                 for x in range(ts/2 - 1):
-                    #self.m[tag].append(2*bin(intbv(randrange(255))))
+                    
+                    # wait for 16 bits to be sent
+                    for y in range(16):
+
+                        # delay due to local link bandwidth
+                        yield delay(bandwidth_delay_local)
+
+                    # make word random 4 digit hex value
                     self.m[tag].append(hex(randrange(2**16-1)))
-                    #self.m[tag].append(hex(255))
-                    #self.m[tag].append(hex(2**16-1))
+
+                    # delay due to memory latency
                     yield delay(self.latency)
 
                 # update used
-                #self.used += ts
                 self.used += 1
 
-            # tag no in memory
             else:
 
-                # unset hit flag
+                # tag not in memory
+                # unset hit flag, increment misses
                 self.hit = False
                 self.misses += 1
 
@@ -267,39 +276,53 @@ class cache:
                 self.checkCapacity()
 
                 # check for full flag, if set, evict
-                # also make sure ts + used < max_capacity to
+                # also make sure new cache line + used < max_capacity to
                 # prevent the cache from being over filled
-                # and evict if ts + used > max_capacity
-                if self.full or (self.used + 1 > self.max_capacity):#(ts+self.used > self.max_capacity):
+                # and evict if new cache line + used > max_capacity
+                if self.full or (self.used + 1 > self.max_capacity):
 
                     # eviction is needed, check policy
                     if self.LRU:
 
                         # least recently used
                         old_key = min(self.m.keys(), key=lambda k:self.m[k])
+
+                        # let eviction function take over
+                        # resume execution here when done
                         yield self.evict(old_key)
 
                     elif self.FIFO:
 
                         # first in first out
+                        # let eviction function take over
+                        # resume execution here when done
                         yield self.evict(self.tags[-1])
 
                 if self.FIFO:
                     # insert tag into beginning of tags array
                     self.tags.insert(0, tag)
 
-                # convert to binary
-                # ex: transaction size = 128
-                # intbv(256-1) will yield 8 bits of 1 aka one byte
-                # multiplying this by 128 will give us 128 bytes
+                # initialize cache line
                 self.m[tag] = []
-                #for x in range(ts/2):
+
+                # go through the data and grab two bytes
+                # and store in memory
+                # the tag and index bits take up two bytes
                 for x in range(ts/2 - 1):
+
+                    # wait for 16 bits to be sent
+                    for y in range(16):
+
+                        # delay due to local link bandwidth
+                        yield delay(bandwidth_delay_local)
+
+                    # make word random 4 digit hex value
                     self.m[tag].append(hex(randrange(2**16-1)))
+
+                    # delay due to memory latency
                     yield delay(self.latency)
 
                 # update used
-                #self.used += ts
                 self.used += 1
 
         # read
@@ -308,62 +331,91 @@ class cache:
             # check to see if tag is in memory
             if tag in self.m:
 
-                # set hit flag
+                # tag is in memory
+                # set hit flag, increment hits
                 self.hit = True
                 self.hits += 1
-                
+
+                # nice print out to tell us what's going on
                 print '%s: Read request hit, receiving bytes from memory' % now()
 
+                # counter for counting the words
                 counter = 0
+
+                # go through data in cache line
                 for bits in self.m[tag]:
+
                     # bandwidth delay for local link
+                    # and memory latency
                     yield delay(4*(len(bits)-2)*self.latency*bandwidth_delay_local)
 
+                    # output to databus
                     self.databus = bits
+
+                    # nice print out to tell us what's going on
                     print '%s: Word %s = %s' % (now(), counter, self.databus)                  
 
+                    # increment counter
                     counter += 1
 
-            # tag is not in memory
             else:
 
-                # unset hit flag
+                # tag is not in memory
+                # unset hit flag, increment misses
                 self.hit = False
                 self.misses += 1
 
-                # output 0's on databus
+                # no output on databus
+                # until we get it from the data center
                 self.databus = []
-                
+
+                # keep track of when transactions started
                 started = now()
-                
+
+                # nice print out to tell us what's up
                 print '%s: Read request miss, contacting data center...' % now()
                 
                 # contact data center, send command via satellite
+
+                # delay for hub to satellite
                 yield delay(32*bandwidth_delay_satellite)
-                yield delay(32*bandwidth_delay_center)
-                
+
+                # delay for satellite to data center
+                yield delay(32*bandwidth_delay_satellite+100)
+
+                # for counting the words
                 counter = 0
                 for bits in data_center[tag]:
                     # data center to satellite delay
-                    yield delay(4*(len(bits) - 2)*bandwidth_delay_center)
+                    yield delay(4*(len(bits) - 2)*(bandwidth_delay_satellite+100))
 
                     # satellite to hub delay
                     yield delay(4*(len(bits) - 2)*bandwidth_delay_satellite)
                     
                     # hub to device delay
                     yield delay(4*(len(bits) - 2)*bandwidth_delay_local)
-                    
+
+                    # output to databus
                     self.databus = bits
+
+                    # print statement to tell us what's going on
                     print '%s: Word %s = %s' % (now(), counter, self.databus)
+
+                    # increment counter
                     counter += 1
 
+                # change in time from when transaction started to finish
                 finished = now() - started
 
+                # awesome print statement to inform user
                 print '%s: Done communicating with data center...time elapsed: %s' % (now(), finished)
 
+                # update communication cost
                 self.comm_cost += (finished*10e-8)/60
 
-        self.cum_latency += (now()-started)*10e-8
+        # memory access done, add to cumulative latency, convert to seconds
+        # because who really thinks about this in clock cycles?
+        self.cum_latency += (now()-start)*10e-8
 
     def evict(self, tag):
         """
@@ -375,7 +427,10 @@ class cache:
         # show eviction information
         print '%s: EVICT %s, contacting data center...' % (now(), tag)
 
+        # initialize data center memory line
         data_center[tag] = []
+
+        # keep track of when eviction process started
         started = now()
         
         # eviction about to happen, write to data center
@@ -385,29 +440,33 @@ class cache:
             yield delay(4*(len(bits) - 2)*bandwidth_delay_satellite)
 
             # satellite to data center delay
-            yield delay(4*(len(bits) - 2)*bandwidth_delay_center)
+            yield delay(4*(len(bits) - 2)*(bandwidth_delay_satellite+100))
 
             # store in data center
             data_center[tag].append(bits)
 
+        # change in time from when transaction started to finish
         finished = now() - started
 
+        # is it obvious yet that I like to keep my user informed?
         print '%s: Done communicating with data center...time elapsed: %s' % (now(), finished)
 
+        # update communication cost
         self.comm_cost += (finished*10e-8)/60
 
+        # update used
         self.used -= 1
 
+        # check for fifo
         if self.FIFO:
             # first in first out eviction, evict from tags array & memory
             self.tags.pop(-1)
+
+        # get rid of cache line
         self.m.pop(tag)
 
 
-# Level 1 memory module, 1 M2 memory
-#L1 = cache(max_capacity=M2, latency=M2_latency)
-
-# Level 1 memory module, 1 M1 memory with 4 cache lines of 128 Bytes each
+# Level 1 memory module, 1 M2 memory with 4 cache lines of 128 Bytes each
 L1 = cache(max_capacity=M20, latency=M2_latency)
 
 # Level 2 memory module, 10 M3 memories each with 1 cache line of 1kB
@@ -458,12 +517,22 @@ def hub(mem1, mem2):
 
                 # transaction size greater than 128 bytes
                 # access L2, check to see if tag in L2
+                # first we yield for a small delay due to local link
+                # bandwidth limitations then we yield to the memory
+                # access and then resume execution at this point
+                # once that has finished
+                yield delay(16*bandwidth_delay_local)
                 yield mem2.access(1, tag[i], ts[i])
 
             else:
 
                 # transaction size 128 bytes
                 # access L1, check to see if tag in L1
+                # first we yield for a small delay due to local link
+                # bandwidth limitations then we yield to the memory
+                # access and then resume execution at this point
+                # once that has finished
+                yield delay(16*bandwidth_delay_local)
                 yield mem1.access(1, tag[i], ts[i])
 
             # transaction is finished
@@ -482,12 +551,22 @@ def hub(mem1, mem2):
 
                 # transaction size greater than 128 bytes
                 # access L2, check to see if tag in L2
+                # first we yield for a small delay due to local link
+                # bandwidth limitations then we yield to the memory
+                # access and then resume execution at this point
+                # once that has finished
+                yield delay(16*bandwidth_delay_local)
                 yield mem2.access(0, tag[i], ts[i])
 
             else:
 
                 # transaction size 128 bytes
                 # access L1, check to see if tag in L1
+                # first we yield for a small delay due to local link
+                # bandwidth limitations then we yield to the memory
+                # access and then resume execution at this point
+                # once that has finished
+                yield delay(16*bandwidth_delay_local)
                 yield mem1.access(0, tag[i], ts[i])
 
             # transaction finished, check hit flag on L1 & L2 cache
