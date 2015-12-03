@@ -33,6 +33,12 @@ import argparse
 # used for randomizing data
 from random import randrange
 
+# import isfile function to make sure 
+# the csv file provided exists
+# import join to join the path if it had 
+# any extra characters
+from os.path import isfile, join
+
 """ ************Start of program***************** """
 
 # initialize argument parser
@@ -50,6 +56,9 @@ parser.add_argument('-f',
 arguments = parser.parse_args()
 
 # use numpy to load data from csv file
+if not isfile(join(arguments.fname)):
+    print 'ERROR: %s does NOT exist'
+    exit(1)
 columns = np.loadtxt(arguments.fname, dtype=int, delimiter=',', unpack=True)
 
 # put data from csv file into arrays
@@ -491,18 +500,20 @@ def hub(mem1, mem2):
         # ignore error
         pass
 
+    key = 'A'
     # go through the transactions
     for i in range(len(t)):
 
         # wait for key press to continue
-        try:
-            input("%s: Pause. Press enter for next event" % now())
+        if key.upper() != 'Q':
+            try:
+                key = raw_input("%s: Pause. Press enter for next event or Q to run all events: " % now())
 
-        # just pressing enter yields a SyntaxError, make exception
-        except SyntaxError:
+            # just pressing enter yields a SyntaxError, make exception
+            except SyntaxError:
 
-            # ignore error
-            pass
+                # ignore error
+                pass
 
         # check operation, op = 0 is a SEND
         if not op[i]:
